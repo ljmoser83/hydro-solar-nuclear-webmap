@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset=utf-8 />
+    <title>Lab 09 Template</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.2/dist/leaflet.css" />
+    <link href='http://fonts.googleapis.com/css?family=Lato' rel='stylesheet' type='text/css'>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: whitesmoke;
+            font-family: Lato, sans-serif;
+            color: #0D0000;
+        }
+        
+        header {
+            padding: 6px 10%;
+        }
+        
+        h1 {
+            display: inline-block;
+            margin-right: 20px;
+            color: #001323;
+            font-size: 2.06em
+        }
+        
+        h2 {
+            display: inline-block;
+            color: #001323;
+            font-size: 1.235em
+        }
+        
+        #map {
+            width: 80%;
+            height: 540px;
+            margin: 10px auto;
+        }
+        
+        footer {
+            padding: 6px 10%;
+            width: 80%;
+        }
+        
+        p {
+            font-size: 1em;
+            color: #001323;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Hydro, Solar, and Nuclear Power Plants in the United States</h1>
+
+    </header>
+
+    <div id='map'></div>
+
+    <footer>
+        <h2>Click Anywhere in the Continental US to Display Hydro, Solar, and Nuclear Power Plants Within 500 km</h2>
+        <p>Hydro, solar, and nuclear power plants are three major types of energy producing facilities in the United States. Investment options in each of these sub-sectors of the energy industry may prove to be financially lucrative within the next several decades, as fossil fuels are gradually phased out. The map above can help to display current operations in the United States that fall within each of these three sub-sectors of the energy industry and allow for investors with a specific location in mind to see what resources may already exist.</p>
+        <p>Map authored by Lee Moser, University of Kentucky's MAP672 Fall 2016</p>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.0.2/dist/leaflet.js"></script>
+    <script src="power-plants.js"></script>
+    <script>
+        var map = L.map('map', {
+            center: [36, -94],
+            zoom: 4,
+        });
+
+        var tiles = L.tileLayer('http://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+        });
+
+        tiles.addTo(map);
+
+        var commonStyles = {
+                weight: 1,
+                stroke: 1,
+                fillOpacity: .8
+            }
+            //defines a default style variale that is used within the L.circle method to define basic style settings of the markers
+
+        var layerInfo = {
+            nuclearLayer: {
+                source: "Nuclear",
+                color: '#ff0000',
+                type: 'Nuclear'
+            },
+            hydroLayer: {
+                source: "Hydro",
+                color: '#1f78b4',
+                type: "Hydro"
+            },
+            solarLayer: {
+                source: "Solar",
+                color: '#ffff00',
+                type: "Solar"
+            }
+
+        };
+
+        //creates a layergroup that is utilized within the following looping function to systematically place the features from each layer onto the map in the order that they are listed int eh layergroup
+
+        var geoJsonLayers = {};
+        //defines a blank object that stores the objects that are created within the following sequences of code for easier reference later in the program
+        for (var layer in layerInfo) {
+            //begins looping through the desired fuel sources in the layerInfo layer group
+            geoJsonLayers[layer] = L.geoJson(plants, {
+                pointToLayer: function (feature, latlng) {
+                    return L.circleMarker(latlng, commonStyles);
+                },
+
+                //
+                filter: function (feature) {
+                    if (feature.properties.fuel_source[layerInfo[layer].source]) {
+                        return feature;
+                    }
+                },
+                style: function (feature) {
+                    return {
+                        color: layerInfo[layer].color,
+                        fillColor: layerInfo[layer].color,
+                        radius: getRadius(feature.properties.fuel_source[layerInfo[layer].source])
+                    }
+                }
+            }).addTo(map);
+        }
+        //stores the results of the L.geoJson options that result in executing the L.circle method on all of the features in each layer within the layerInfo layer group as it loops through. pointToLayers creates the markers (through the use of the L.circle method) at a desired latlng, filter draws only the desired features based on source, and style further defines how the circles are displayed in addition to the initial definitions found within commonStyles.
+        //        console.log(geoJsonLayers)
+        var highlighter = L.circle([], 500000, {
+                color: "#ffffff", // changes the stroke color
+                fillColor: "#ffffff" // changes the fill color
+            })
+            //creates a variable that invokes the L.circle method and places a circle with a 500 km radius with no initial location that will be moved around each time the user clicks to highlight the area of interest. 
+        map.on('click', function (e) {
+            //adds a click listener
+            highlighter.setLatLng(e.latlng).addTo(map)
+            highlighter.bringToBack();
+            //adds the highlighter circle to the map centered at the click location and then sends it behind the features representing the power plants so that there is no interference during clicking on the power plants.
+            for (var l in layerInfo) {
+
+                //begins looping through the layerInfo layers (defined by l in this portion of the code) and allows the subsequent code to have features to act upon
+                geoJsonLayers[l].eachLayer(function (layer) {
+                    //defines which object to find the layers in (the geoJsonLayers object that we created earlier)
+                    var distance = e.latlng.distanceTo(layer.getLatLng()) / 1000;
+                    //defines a distance variable that is calculated based on the distance from the click event latlng to the layer latlng for each layer
+                    if (distance > 500) {
+                        layer.setStyle({
+                            stroke: false,
+                            fill: false
+                        });
+
+                    } else {
+                        layer.setStyle({
+                            stroke: true,
+                            fill: true
+                        });
+
+                        //conditional if, else statement that turns off all layers greater than 500 km from the user defined click location and leaves any layers within 500 km visible
+                        layer.bindPopup(layer.feature.properties.plant_name +
+                            "<br>Fuel Source: " + [layerInfo[l].type] +
+                            "<br>I am <b>" + distance.toLocaleString() + " km</b><br> from the click point."
+                        );
+                    }
+                    //binds the desired popup information to the layers that are still visible after the if, else statement turns off any features greater than 500 km from the user click.
+                });
+            }
+
+        })
+
+
+        function getRadius(val) {
+            var radius = Math.sqrt(val / Math.PI);
+            return radius * .8;
+        }
+        //defines the getRadius function that is used as part of the bivariate symbology that controls the size of the cirsles for each feature
+
+        var sourcesLabels = {
+                "<b style='color:#ff0000'>Nuclear</b>": geoJsonLayers.nuclearLayer,
+                "<b style='color:#1f78b4'>Hydro</b>": geoJsonLayers.hydroLayer,
+                "<b style='color:#ffff00; text-shadow: 0px 0px 1px #333;'>Solar</b>": geoJsonLayers.solarLayer
+
+            }
+            //provides formatting and label information for the L.control method to define how the layer control interface is displayed.
+        L.control.layers(null, sourcesLabels, {
+            collapsed: false
+        }).addTo(map);
+
+        //invokes the L.control method on the layers and adds the layer control interface to the map
+    </script>
+
+</body>
+
+</html>
